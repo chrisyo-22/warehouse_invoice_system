@@ -1,0 +1,25 @@
+{
+  "name": "jinjinfood",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "deno task dev:api & deno task dev:vite",
+    "dev:api": "deno run --watch --allow-env --allow-net --allow-write --allow-read api/main.ts",
+    "dev:vite": "deno run -A npm:vite",
+    "build": "vue-tsc -b && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "element-plus": "^2.8.8",
+    "vue": "^3.4.31",
+    "vue-router": "^4.4.5",
+    "vuex": "^4.0.2"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.5",
+    "typescript": "^5.2.2",
+    "vite": "^5.3.4",
+    "vue-tsc": "^2.0.24"
+  }
+}

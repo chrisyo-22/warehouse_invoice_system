@@ -1,0 +1,13 @@
+{
+  "imports": {
+    "@oak/oak": "jsr:@oak/oak@^17.0.0",
+    "@tajpouria/cors": "jsr:@tajpouria/cors@^1.2.1",
+    "vue-router": "npm:vue-router@^4.4.5",
+    "vueJsx":"npm:@vitejs/plugin-vue-jsx"
+  },
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "jsxImportSource": "vue"
+  },
+  "nodeModulesDir": "auto"
+}
