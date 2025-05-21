@@ -15,16 +15,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 
-const categories = ref([
-  { id: 1, name: 'Frozen Foods' },
-  { id: 2, name: 'Fresh Produce' },
-  { id: 3, name: 'Bakery' },
-  { id: 4, name: 'Beverages' },
-  { id: 5, name: 'Dry Goods' }
-]);
-
+const categories = ref<{ id: number; name: string; description?: string }[]>([]);
 const selectedCategoryId = ref<number | null>(null);
 
 const emit = defineEmits<{
@@ -35,6 +28,16 @@ const selectCategory = (categoryId: number) => {
   selectedCategoryId.value = categoryId;
   emit('category-selected', categoryId);
 };
+
+onMounted(async () => {
+  try {
+    const res = await fetch('/api/categories');
+    if (!res.ok) throw new Error('Failed to fetch categories');
+    categories.value = await res.json();
+  } catch (e) {
+    categories.value = [];
+  }
+});
 </script>
 
 <style scoped>

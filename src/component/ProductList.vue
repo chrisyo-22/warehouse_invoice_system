@@ -9,57 +9,89 @@
         <img :src="product.image_url" :alt="product.name" class="product-image" />
         <h3>{{ product.name }}</h3>
         <p class="description">{{ product.description }}</p>
-        <p class="price">${{ product.price.toFixed(2) }}</p>
-        <button @click="addToOrder(product)">Add to Order</button>
+        <div class="unit-action-row">
+          <select v-model="unitSelections[product.id]" class="unit-select">
+            <option v-for="unit in unitOptions" :key="unit" :value="unit">{{ unit }}</option>
+          </select>
+          <button @click="addToOrderWithUnit(product)" class="add-to-order-btn">Add to Order</button>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, defineProps, defineEmits } from 'vue';
+import { ref, computed, defineProps, defineEmits, watch, onMounted } from 'vue';
 
 interface Product {
   id: number;
-  categoryId: number;
+  category_id: number;
   name: string;
   description: string;
   price: number;
   image_url: string;
+  unit?: string;
 }
 
 const props = defineProps<{
   categoryId?: number | null;
 }>();
 
-const allProducts = ref<Product[]>([
-  { id: 1, categoryId: 1, name: 'Frozen Peas', description: 'Sweet and tender frozen green peas.', price: 2.99, image_url: 'https://via.placeholder.com/150/92c952' },
-  { id: 2, categoryId: 1, name: 'Ice Cream', description: 'Rich vanilla bean ice cream.', price: 5.49, image_url: 'https://via.placeholder.com/150/771796' },
-  { id: 3, categoryId: 1, name: 'Frozen Pizza', description: 'Classic pepperoni pizza with a crispy crust.', price: 7.99, image_url: 'https://via.placeholder.com/150/24f355' },
-  { id: 4, categoryId: 2, name: 'Apples', description: 'Crisp and juicy red apples, perfect for snacking.', price: 3.50, image_url: 'https://via.placeholder.com/150/d32776' },
-  { id: 5, categoryId: 2, name: 'Bananas', description: 'Ripe yellow bananas, sold by the bunch.', price: 1.99, image_url: 'https://via.placeholder.com/150/f66b97' },
-  { id: 6, categoryId: 2, name: 'Carrots', description: 'Fresh organic carrots, great for cooking or raw.', price: 2.20, image_url: 'https://via.placeholder.com/150/f69b97' },
-  { id: 7, categoryId: 3, name: 'Sourdough Bread', description: 'Artisan sourdough bread with a tangy flavor.', price: 4.50, image_url: 'https://via.placeholder.com/150/56a8c2' },
-  { id: 8, categoryId: 3, name: 'Croissants', description: 'Buttery and flaky croissants, baked fresh daily.', price: 1.75, image_url: 'https://via.placeholder.com/150/b0f7cc' },
-  { id: 9, categoryId: 4, name: 'Orange Juice', description: 'Freshly squeezed orange juice, 1 liter.', price: 3.99, image_url: 'https://via.placeholder.com/150/fb0000' },
-  { id: 10, categoryId: 4, name: 'Sparkling Water', description: 'Natural sparkling mineral water, 750ml.', price: 1.50, image_url: 'https://via.placeholder.com/150/289781' },
-  { id: 11, categoryId: 5, name: 'Pasta', description: 'Imported Italian spaghetti, 500g.', price: 2.10, image_url: 'https://via.placeholder.com/150/808080' },
-  { id: 12, categoryId: 5, name: 'Rice', description: 'Long-grain white rice, 1kg bag.', price: 3.00, image_url: 'https://via.placeholder.com/150/000000' }
-]);
+const allProducts = ref<Product[]>([]);
+const loading = ref(false);
+const error = ref<string | null>(null);
+
+const unitOptions = ['skids', 'boxes', 'kg', 'pcs', 'bunch', 'loaf', '1L', '750ml', '500g', 'cake'];
+const unitSelections = ref<{ [productId: number]: string }>({});
+
+const fetchProducts = async (categoryId?: number | null) => {
+  loading.value = true;
+  error.value = null;
+  try {
+    let url = '/api/products';
+    if (categoryId) {
+      url += `?category_id=${categoryId}`;
+    }
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('Failed to fetch products');
+    const data = await res.json();
+    allProducts.value = data.map((p: any) => ({
+      ...p,
+      price: Number(p.price)
+    }));
+    // Set default unit selection for each product
+    data.forEach((p: any) => {
+      if (!unitSelections.value[p.id]) {
+        unitSelections.value[p.id] = unitOptions[0];
+      }
+    });
+  } catch (e: any) {
+    error.value = e.message || 'Unknown error';
+    allProducts.value = [];
+  } finally {
+    loading.value = false;
+  }
+};
+
+watch(() => props.categoryId, (newVal) => {
+  fetchProducts(newVal);
+}, { immediate: true });
+
+onMounted(() => {
+  fetchProducts(props.categoryId);
+});
 
 const filteredProducts = computed(() => {
-  if (props.categoryId === undefined || props.categoryId === null) {
-    return allProducts.value; // Show all products if no categoryId is provided
-  }
-  return allProducts.value.filter(product => product.categoryId === props.categoryId);
+  return allProducts.value;
 });
 
 const emit = defineEmits<{
-  (e: 'add-to-order', product: Product): void;
+  (e: 'add-to-order', product: Product & { unit: string }): void;
 }>();
 
-const addToOrder = (product: Product) => {
-  emit('add-to-order', product);
+const addToOrderWithUnit = (product: Product) => {
+  const unit = unitSelections.value[product.id] || unitOptions[0];
+  emit('add-to-order', { ...product, unit });
 };
 </script>
 
@@ -111,18 +143,25 @@ const addToOrder = (product: Product) => {
 .description {
   font-size: 0.9em;
   color: #666;
-  flex-grow: 1; /* Allows description to take available space */
+  flex-grow: 1;
   margin-bottom: 10px;
 }
 
-.price {
+.unit-action-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.unit-select {
+  padding: 5px 10px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
   font-size: 1em;
-  font-weight: bold;
-  color: #007bff;
-  margin-bottom: 10px;
 }
 
-.product-item button {
+.add-to-order-btn {
   padding: 8px 15px;
   background-color: #007bff;
   color: white;
@@ -130,10 +169,9 @@ const addToOrder = (product: Product) => {
   border-radius: 4px;
   cursor: pointer;
   transition: background-color 0.2s;
-  margin-top: auto; /* Pushes button to the bottom of the card */
 }
 
-.product-item button:hover {
+.add-to-order-btn:hover {
   background-color: #0056b3;
 }
 
