@@ -1,6 +1,6 @@
 import { Context, Next } from "https://deno.land/x/oak@v17.1.4/mod.ts";
 import { verify } from "https://deno.land/x/djwt@v2.9.1/mod.ts";
-import db from "../db.ts";
+import db from "../db/db.ts";
 import { key } from "../utils/jwt.ts";
 
 export async function authMiddleware(ctx: Context, next: Next) {

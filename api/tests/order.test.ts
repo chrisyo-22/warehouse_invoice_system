@@ -1,5 +1,5 @@
 import { assertEquals, assertNotEquals } from "https://deno.land/std/testing/asserts.ts";
-import db from "../db.ts";
+import db from "../db/db.ts";
 
 const BASE_URL = "http://localhost:8000";
 

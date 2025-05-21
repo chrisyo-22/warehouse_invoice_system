@@ -185,7 +185,7 @@ import { ref, computed, onMounted, defineProps, h, onUnmounted } from "vue";
 import { useRouter } from 'vue-router';
 import { useStore } from 'https://esm.sh/vuex@4.0.2?bundle';
 import type { Order, Item } from '../types';
-import Invoice from './Invoice/Invoice.vue';
+import Invoice from '../page/Invoice.vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { updateOrder } from '../utils/apiClient';
 

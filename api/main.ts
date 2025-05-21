@@ -2,9 +2,8 @@ import { Application } from "https://deno.land/x/oak/mod.ts";
 import { oakCors } from "https://deno.land/x/cors/mod.ts";
 import { load } from "https://deno.land/std/dotenv/mod.ts";
 import orderRouter from "./order.ts";
-import aiParserRouter from "./ai_parser.ts";
 import authRouter from "./auth.ts";
-import db from "./db.ts";
+import db from "./db/db.ts";
 
 // Load environment variables from .env file
 await load({ export: true });
@@ -54,10 +53,6 @@ app.use(authRouter.allowedMethods());
 // Use order routes
 app.use(orderRouter.routes());
 app.use(orderRouter.allowedMethods());
-
-// Use AI parser routes
-app.use(aiParserRouter.routes());
-app.use(aiParserRouter.allowedMethods());
 
 // Start the server
 console.log("Server running on http://localhost:8000");

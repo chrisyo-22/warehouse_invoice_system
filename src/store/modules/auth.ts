@@ -153,7 +153,32 @@ const auth: Module<AuthState, RootState> = {
         }
         throw error
       }
-    }
+    },
+
+    async validateToken({ commit }, token) {
+      try {
+        const response = await fetch('/api/auth/me', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (!response.ok) {
+          if (response.status === 401) {
+            commit('CLEAR_AUTH');
+          }
+          throw new Error('Invalid token');
+        }
+
+        const data = await response.json();
+        commit('SET_USER', data);
+        commit('SET_TOKEN', token);
+        return true;
+      } catch (error) {
+        commit('CLEAR_AUTH');
+        return false;
+      }
+    },
   }
 }
 

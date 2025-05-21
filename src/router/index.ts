@@ -1,15 +1,15 @@
 import { createRouter, createWebHistory } from "vue-router";
-import HomePage from "../components/HomePage.vue";
-import Dashboard from "../components/Dashboard.vue";
-import OrderToday from "../components/OrderToday.vue";
-import PastOrders from "../components/PastOrders.vue";
-import Invoice from "../components/Invoice/Invoice.vue";
-import Login from "../components/Auth/Login.vue";
-import Register from "../components/Auth/Register.vue";
+import HomePage from "../page/HomePage.vue";
+import Dashboard from "../page/Dashboard.vue";
+import OrderToday from "../page/OrderToday.vue";
+import PastOrders from "../page/PastOrders.vue";
+import Invoice from "../page/Invoice.vue";
+import Login from "../page/Login.vue";
+import Register from "../page/Register.vue";
 import store from "../store";
 
 const router = createRouter({
-    history: createWebHistory("/"),
+    history: createWebHistory(),
     routes: [
         {
             path: "/",
@@ -19,6 +19,7 @@ const router = createRouter({
                     path: "",
                     name: "Dashboard",
                     component: Dashboard,
+                    meta: { requiresAuth: true }
                 },
                 {
                     path: "order-today",
@@ -55,13 +56,32 @@ const router = createRouter({
     ],
 });
 
+// Helper to get token from localStorage
+function getToken() {
+    return localStorage.getItem('token');
+}
+
 // Navigation guard
-router.beforeEach((to, from, next) => {
-    const isAuthenticated = store.getters['auth/isAuthenticated'];
+router.beforeEach(async (to, from, next) => {
+    const token = getToken();
+    let isAuthenticated = store.getters['auth/isAuthenticated'];
+
+    // If we have a token but not authenticated, try to validate it
+    if (token && !isAuthenticated) {
+        try {
+            // Optionally, you can call an API endpoint to validate the token
+            await store.dispatch('auth/validateToken', token);
+            isAuthenticated = store.getters['auth/isAuthenticated'];
+        } catch (e) {
+            // If token is invalid, remove it
+            localStorage.removeItem('token');
+            isAuthenticated = false;
+        }
+    }
 
     // Routes that require authentication
     if (to.matched.some(record => record.meta.requiresAuth)) {
-        if (!isAuthenticated) {
+        if (!token || !isAuthenticated) {
             next({ name: 'Login' });
             return;
         }
@@ -69,7 +89,7 @@ router.beforeEach((to, from, next) => {
 
     // Routes for guests only (login, register)
     if (to.matched.some(record => record.meta.guestOnly)) {
-        if (isAuthenticated) {
+        if (token && isAuthenticated) {
             next({ name: 'Dashboard' });
             return;
         }

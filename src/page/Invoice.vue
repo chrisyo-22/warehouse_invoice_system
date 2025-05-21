@@ -66,12 +66,12 @@ import { ref, computed, onMounted } from 'vue';
 import { useStore } from 'vuex';
 import { useRouter } from 'vue-router';
 import type { Item } from '../../types';
-import InvoiceHeader from './InvoiceHeader.vue';
-import CustomerInfo from './CustomerInfo.vue';
-import InvoiceItems from './InvoiceItems.vue';
-import InvoiceTotals from './InvoiceTotals.vue';
-import SignatureField from './SignatureField.vue';
-import PickerItems from './PickerItems.vue';
+import InvoiceHeader from '../component/InvoiceHeader.vue';
+import CustomerInfo from '../component/CustomerInfo.vue';
+import InvoiceItems from '../component/InvoiceItems.vue';
+import InvoiceTotals from '../component/InvoiceTotals.vue';
+import SignatureField from '../component/SignatureField.vue';
+import PickerItems from '../component/PickerItems.vue';
 
 const router = useRouter();
 const store = useStore();
