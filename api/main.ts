@@ -2,6 +2,7 @@ import { Application } from "https://deno.land/x/oak/mod.ts";
 import { oakCors } from "https://deno.land/x/cors/mod.ts";
 import { load } from "https://deno.land/std/dotenv/mod.ts";
 import orderRouter from "./order.ts";
+import catalogRouter from "./catalog.ts";
 import authRouter from "./auth.ts";
 import db from "./db/db.ts";
 
@@ -53,6 +54,10 @@ app.use(authRouter.allowedMethods());
 // Use order routes
 app.use(orderRouter.routes());
 app.use(orderRouter.allowedMethods());
+
+// Use catalog routes
+app.use(catalogRouter.routes());
+app.use(catalogRouter.allowedMethods());
 
 // Start the server
 console.log("Server running on http://localhost:8000");
