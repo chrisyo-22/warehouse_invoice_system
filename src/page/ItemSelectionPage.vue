@@ -259,9 +259,13 @@ const saveOrder = async () => {
 .order-summary-container {
   width: 320px;
   flex-shrink: 0;
+  padding: 25px; /* Increased padding */
   border-left: 1px solid #e0e0e0; 
+  background-color: #f7f9fc; /* Slightly different light background */
   display: flex;
   flex-direction: column;
+  gap: 20px; /* Spacing for direct children */
+  /* overflow-y: auto; /* This was for the whole container, list needs its own */
 }
 
 .close-btn {
@@ -363,98 +367,117 @@ const saveOrder = async () => {
 
 
 .order-details-form {
-  margin-bottom: 20px;
-  padding-bottom: 20px;
-  border-bottom: 1px solid #ddd;
+  /* margin-bottom will be handled by parent gap if this is a direct child */
+  padding-bottom: 15px; /* Adjusted padding */
+  border-bottom: 1px solid #e0e0e0; /* Lighter border */
 }
 
 .order-details-form .form-item {
   margin-bottom: 15px;
 }
+.order-details-form .form-item:last-child {
+  margin-bottom: 0; /* Remove margin for the last form item */
+}
 
 .order-details-form .form-item label {
   display: block;
-  margin-bottom: 5px;
-  font-weight: 500;
+  margin-bottom: 6px; /* Increased space */
+  font-weight: 500; /* Element Plus uses 500 for labels by default */
   font-size: 0.9em;
-  color: #555;
+  color: #495057; /* Darker, more readable gray */
 }
 
 .order-summary-container h3 {
   margin-top: 0;
-  color: #333;
+  color: #2c3e50; /* Consistent with AppHeader title color */
   text-align: center;
-  border-bottom: 1px solid #ddd;
-  padding-bottom: 10px;
-  margin-bottom: 15px;
+  border-bottom: 1px solid #e0e0e0; /* Lighter separator */
+  padding-bottom: 12px;
+  margin-bottom: 0; /* Gap will handle spacing, or adjust if h3 is not direct child */
+  font-size: 1.3em; /* Slightly larger */
 }
 
 .empty-order p {
   text-align: center;
-  color: #777;
+  color: #6c757d;
   font-style: italic;
+  padding: 20px 0; /* Add some padding if list is empty */
 }
 
 .order-items-list {
   list-style-type: none;
-  padding: 0;
-  margin: 0;
-  flex-grow: 1; /* Allows list to take available space */
+  padding: 10px; /* Padding inside the scrollable area */
+  margin: 0; 
+  flex-grow: 1; 
+  max-height: 280px; /* Max height for scrollability */
+  overflow-y: auto; 
+  border: 1px solid #e0e0e0; 
+  border-radius: 4px; 
+  background-color: #ffffff; 
 }
 
 .order-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 0;
-  border-bottom: 1px solid #eee;
+  display: grid;
+  grid-template-columns: 1fr auto; /* Name+Price | Quantity+Subtotal */
+  grid-template-rows: auto auto;
+  gap: 2px 15px; /* Small row gap, larger column gap */
+  padding: 12px 8px; /* Increased padding */
+  border-bottom: 1px solid #f0f0f0; 
   font-size: 0.9em;
+  align-items: center;
 }
-
 .order-item:last-child {
   border-bottom: none;
 }
 
+.item-details { /* New wrapper for name and price */
+  display: flex;
+  flex-direction: column;
+}
+
 .item-name {
-  flex-basis: 40%;
-  font-weight: bold;
-  color: #555;
+  font-weight: 600; 
+  color: #333;
+  word-break: break-word; 
+}
+
+.item-price { 
+  font-size: 0.85em;
+  color: #777;
+}
+
+.item-qty-subtotal { /* New wrapper for quantity and subtotal */
+  text-align: right;
 }
 
 .item-quantity {
-  flex-basis: 15%;
-  text-align: center;
+  font-size: 0.9em;
   color: #555;
-}
-
-.item-price {
-  flex-basis: 20%;
-  text-align: right;
-  color: #555;
+  display: block; /* Ensure it's on its own line if needed or adjust grid */
 }
 
 .item-subtotal {
-  flex-basis: 25%;
-  text-align: right;
-  font-weight: bold;
+  font-weight: 600; 
   color: #333;
+  font-size: 0.95em; /* Slightly larger subtotal */
 }
 
 .order-total {
-  margin-top: auto; /* Pushes total to the bottom */
+  /* margin-top is handled by parent gap */
   padding-top: 15px;
-  border-top: 2px solid #ddd;
+  border-top: 2px solid #007bff; /* Use primary color */
   text-align: right;
 }
 
 .order-total h4 {
   margin: 0;
-  font-size: 1.2em;
-  color: #2c3e50;
+  font-size: 1.25em; 
+  color: #007bff; /* Primary color for total */
+  font-weight: 600;
 }
 
 .save-order-button {
-  background-color: #28a745; /* Green */
+  background-color: #28a745; 
   color: white;
   padding: 12px 20px;
   border: none;
@@ -463,16 +486,21 @@ const saveOrder = async () => {
   font-size: 1em;
   font-weight: bold;
   text-transform: uppercase;
-  transition: background-color 0.2s ease-in-out;
-  margin-top: 20px; /* Space above the button */
+  transition: background-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+  /* margin-top is handled by parent gap */
+  width: 100%; /* Full width */
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
-.save-order-button:hover {
-  background-color: #218838; /* Darker green */
+.save-order-button:hover:not(:disabled) {
+  background-color: #218838; 
+  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
 }
 
 .save-order-button:disabled {
-  background-color: #aaa;
+  background-color: #ced4da; /* Lighter gray for disabled */
+  color: #6c757d;
   cursor: not-allowed;
+  box-shadow: none;
 }
 </style>

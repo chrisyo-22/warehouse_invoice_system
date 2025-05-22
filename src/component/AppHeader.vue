@@ -1,28 +1,53 @@
 <template>
   <header class="app-header">
     <div class="logo-container">
-      <h1>OrderFlow</h1>
+      <RouterLink :to="{ name: 'Dashboard' }" class="logo-link"><h1>OrderFlow</h1></RouterLink>
     </div>
 
-    <nav class="navigation-links">
-      <RouterLink to="/dashboard" class="nav-link">Dashboard</RouterLink>
-      <RouterLink to="/orders" class="nav-link">Orders</RouterLink>
-      <RouterLink to="/products" class="nav-link">Products</RouterLink>
-      <!-- Add more links as needed -->
+    <nav class="navigation-links" v-if="isAuthenticated">
+      <RouterLink :to="{ name: 'Dashboard' }" class="nav-link">Dashboard</RouterLink>
+      <RouterLink :to="{ name: 'OrderToday' }" class="nav-link">Today's Orders</RouterLink>
+      <RouterLink :to="{ name: 'PastOrders' }" class="nav-link">Past Orders</RouterLink>
+      <RouterLink :to="{ name: 'ItemSelectionPage' }" class="nav-link">Create Order</RouterLink>
     </nav>
 
     <div class="user-actions">
-      <span class="user-name">John Doe</span> <!-- Placeholder -->
-      <button class="logout-button">Logout</button>
+      <div v-if="isAuthenticated" class="authenticated-user">
+        <span class="user-name">{{ user?.company_name || user?.email || 'User' }}</span>
+        <el-button type="danger" @click="handleLogout" size="small" class="logout-button-el">
+          Logout
+        </el-button>
+      </div>
+      <div v-else class="guest-user">
+        <RouterLink :to="{ name: 'Login' }" class="nav-link auth-link">Login</RouterLink>
+        <RouterLink :to="{ name: 'Register' }" class="nav-link auth-link">Register</RouterLink>
+      </div>
     </div>
   </header>
 </template>
 
 <script setup lang="ts">
-import { RouterLink } from 'vue-router';
+import { RouterLink, useRouter } from 'vue-router';
+import { computed } from 'vue';
+import { useStore } from 'vuex';
+import { ElMessage, ElButton } from 'element-plus'; // Added ElButton
 
-// Future: Import user store or auth logic to get real user name
-// const userName = ref('John Doe'); // Example if dynamic
+const store = useStore();
+const router = useRouter();
+
+const isAuthenticated = computed(() => store.getters['auth/isAuthenticated']);
+const user = computed(() => store.getters['auth/user']);
+
+const handleLogout = async () => {
+  try {
+    await store.dispatch('auth/logout');
+    router.push({ name: 'Login' });
+    ElMessage.success('Logged out successfully');
+  } catch (error) {
+    console.error('Logout failed:', error);
+    ElMessage.error('Failed to logout. Please try again.');
+  }
+};
 </script>
 
 <style scoped>
@@ -41,7 +66,10 @@ import { RouterLink } from 'vue-router';
   margin: 0;
   font-size: 1.8em;
   font-weight: 600;
+}
+.logo-link, .logo-link:hover, .logo-link:visited {
   color: #ffffff; /* Brighter white for logo */
+  text-decoration: none;
 }
 
 .navigation-links {
@@ -67,29 +95,34 @@ import { RouterLink } from 'vue-router';
 .user-actions {
   display: flex;
   align-items: center;
-  gap: 15px; /* Spacing between user name and button */
+  gap: 15px; 
+}
+
+.authenticated-user, .guest-user {
+  display: flex;
+  align-items: center;
+  gap: 15px;
 }
 
 .user-name {
   font-size: 0.95em;
   color: #ecf0f1;
+  margin-right: 5px; /* Spacing before logout button */
 }
 
-.logout-button {
-  background-color: #e74c3c; /* A soft red for logout */
-  color: white;
-  border: none;
-  padding: 8px 15px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.9em;
-  font-weight: 500;
-  transition: background-color 0.3s ease;
+/* Using ElButton now, so custom .logout-button class might not be needed unless for overrides */
+.logout-button-el {
+  /* ElButton will have its own styles, this is for potential minor adjustments */
 }
 
-.logout-button:hover {
-  background-color: #c0392b; /* Darker red on hover */
+.auth-link {
+  color: #ecf0f1; /* Lighter color for auth links for distinction */
 }
+.auth-link:hover {
+  color: #ffffff;
+  background-color: #34495e;
+}
+
 
 /* Basic responsiveness: On smaller screens, you might want to hide links or stack them.
    This is a very simple example. A full solution would use a hamburger menu. */

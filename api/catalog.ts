@@ -4,8 +4,8 @@ import { getAllCategories, getProducts, getProductById } from "./services/catalo
 // Create router
 const catalogRouter = new Router();
 
-// GET /categories - List all categories
-catalogRouter.get("/categories", async (ctx: Context) => {
+// GET /api/categories - List all categories
+catalogRouter.get("/api/categories", async (ctx: Context) => {
   try {
     const categories = await getAllCategories();
     ctx.response.status = 200;
@@ -17,8 +17,8 @@ catalogRouter.get("/categories", async (ctx: Context) => {
   }
 });
 
-// GET /products - List all products or products by category_id
-catalogRouter.get("/products", async (ctx: Context) => {
+// GET /api/products - List all products or products by category_id
+catalogRouter.get("/api/products", async (ctx: Context) => {
   try {
     const categoryIdParam = ctx.request.url.searchParams.get("category_id");
     let categoryId: number | undefined = undefined;
@@ -42,8 +42,8 @@ catalogRouter.get("/products", async (ctx: Context) => {
   }
 });
 
-// GET /products/:id - Get single product by id
-catalogRouter.get("/products/:id", async (ctx: Context) => {
+// GET /api/products/:id - Get single product by id
+catalogRouter.get("/api/products/:id", async (ctx: Context) => {
   try {
     const id = parseInt(ctx.params.id, 10);
     if (isNaN(id)) {
