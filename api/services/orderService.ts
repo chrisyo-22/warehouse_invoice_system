@@ -154,29 +154,54 @@ export async function createOrder(context: Context) {
       );
       const orderId = orderResult.lastInsertId!;
       for (const item of orderData.items) {
+        let productNameForDb = item.product_name;
+        let descriptionForDb = item.description ?? null;
+        let unitPriceForDb = item.unit_price ?? null;
+        let unitForDb = item.unit ?? null;
+        let productIdForDb: number | null = null;
+
+        if (item.product_id && typeof item.product_id === 'number' && item.product_id > 0) {
+          const productResult = await db.execute(
+            "SELECT name, description, price, unit FROM products WHERE id = ?",
+            [item.product_id]
+          );
+          if (!productResult.rows || productResult.rows.length === 0) {
+            throw new Error(`Product with ID ${item.product_id} not found.`);
+          }
+          const productDetails = productResult.rows[0];
+          productNameForDb = productDetails.name;
+          descriptionForDb = productDetails.description ?? descriptionForDb; // Use product's desc if available, else item's
+          unitPriceForDb = productDetails.price ?? unitPriceForDb; // Use product's price if available
+          unitForDb = productDetails.unit ?? unitForDb; // Use product's unit if available
+          productIdForDb = item.product_id;
+        }
+
         await db.execute(
           `INSERT INTO order_items (
             order_id, 
+            product_id,
             product_name, 
             quantity, 
             description, 
             unit_price, 
             unit
-          ) VALUES (?, ?, ?, ?, ?, ?)`,
+          ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
           [
             orderId,
-            item.product_name,
+            productIdForDb,
+            productNameForDb,
             item.quantity,
-            item.description ?? null,
-            item.unit_price ?? null,
-            item.unit ?? null
+            descriptionForDb,
+            unitPriceForDb,
+            unitForDb
           ]
         );
       }
       await db.execute("COMMIT");
       const itemsResult = await db.execute(`
         SELECT 
-          oi.id as item_id, 
+          oi.id as item_id,
+          oi.product_id, 
           oi.product_name, 
           oi.quantity, 
           oi.description, 
@@ -200,6 +225,7 @@ export async function createOrder(context: Context) {
         original_message: orderDetails.original_message,
         items: Array.isArray(itemsResult.rows) ? itemsResult.rows.map((item: any) => ({
           id: item.item_id,
+          product_id: item.product_id, // Added product_id
           product_name: item.product_name,
           quantity: Number(item.quantity),
           description: item.description,

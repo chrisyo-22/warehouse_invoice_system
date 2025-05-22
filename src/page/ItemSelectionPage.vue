@@ -1,6 +1,16 @@
 <template>
   <div class="item-selection-page">
-    <div class="sidebar-container">
+    <div class="mobile-toggles">
+      <button @click="showSidebar = !showSidebar" class="mobile-toggle-btn">
+        {{ showSidebar ? 'Hide' : 'Show' }} Categories
+      </button>
+      <button @click="showOrderSummary = !showOrderSummary" class="mobile-toggle-btn summary-toggle-btn">
+        {{ showOrderSummary ? 'Hide' : 'Show' }} Order
+      </button>
+    </div>
+
+    <div class="sidebar-container" :class="{ 'is-visible': showSidebar }">
+      <button @click="showSidebar = false" class="close-btn mobile-only">X</button>
       <CategorySidebar @category-selected="handleCategorySelected" />
     </div>
 
@@ -8,8 +18,29 @@
       <ProductList :category-id="selectedCategoryId" @add-to-order="handleAddToOrder" />
     </div>
 
-    <div class="order-summary-container">
-      <h3>Current Order</h3>
+    <div class="order-summary-container" :class="{ 'is-visible': showOrderSummary }">
+      <button @click="showOrderSummary = false" class="close-btn mobile-only">X</button>
+      <h3>Order Details</h3>
+      <div class="order-details-form">
+        <div class="form-item">
+          <label for="recipientName">Recipient Name:</label>
+          <el-input id="recipientName" v-model="recipientName" placeholder="Enter recipient name" clearable />
+        </div>
+        <div class="form-item">
+          <label for="orderDate">Order Date:</label>
+          <el-date-picker 
+            id="orderDate"
+            v-model="orderDate" 
+            type="date" 
+            placeholder="Select order date" 
+            format="YYYY-MM-DD" 
+            value-format="YYYY-MM-DD"
+            style="width: 100%;" 
+          />
+        </div>
+      </div>
+
+      <h3>Current Items</h3> <!-- Changed title for clarity -->
       <div v-if="currentOrderItems.length === 0" class="empty-order">
         <p>Your order is empty. Add items from the product list.</p>
       </div>
@@ -22,19 +53,25 @@
         </li>
       </ul>
       <div class="order-total" v-if="currentOrderItems.length > 0">
-        <h4>Total: ${{ calculateOrderTotal().toFixed(2) }}</h4>
+        <h4>Total: ${{ calculateOrderTotal.toFixed(2) }}</h4> <!-- Corrected: calculateOrderTotal is a computed ref -->
       </div>
-      <button @click="saveOrder" class="save-order-button" :disabled="currentOrderItems.length === 0">
-        Save Order
+      <button 
+        @click="saveOrder" 
+        class="save-order-button" 
+        :disabled="currentOrderItems.length === 0 || isSaving || !recipientName.trim() || !orderDate"
+      >
+        {{ isSaving ? 'Saving...' : 'Save Order' }}
       </button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import CategorySidebar from '../component/CategorySidebar.vue';
 import ProductList from '../component/ProductList.vue';
+import { createOrder } from '../../utils/apiClient'; // Added createOrder import
+import { ElMessage } from 'element-plus'; // Added ElMessage import
 
 // Define interfaces for Product (as emitted by ProductList) and OrderItem
 interface Product {
@@ -55,6 +92,50 @@ interface OrderItem {
 
 const selectedCategoryId = ref<number | null>(null);
 const currentOrderItems = ref<OrderItem[]>([]);
+const isSaving = ref(false);
+
+// Responsive state
+const windowWidth = ref(window.innerWidth);
+const showSidebar = ref(window.innerWidth > 1024); // Visible by default on desktop
+const showOrderSummary = ref(window.innerWidth > 1024); // Visible by default on desktop
+
+const isMobileOrTablet = computed(() => windowWidth.value <= 1024);
+
+const handleResize = () => {
+  windowWidth.value = window.innerWidth;
+  if (!isMobileOrTablet.value) {
+    // On desktop, ensure panels are visible
+    showSidebar.value = true;
+    showOrderSummary.value = true;
+  } else {
+    // On mobile/tablet, hide them initially when resizing to these views,
+    // user can toggle them. Or, preserve their current toggled state if preferred.
+    // For simplicity here, we'll hide them if resizing TO mobile/tablet view.
+    // A more complex solution could remember their last toggled state.
+    showSidebar.value = false;
+    showOrderSummary.value = false;
+  }
+};
+
+onMounted(() => {
+  window.addEventListener('resize', handleResize);
+  handleResize(); // Initial check
+});
+
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize);
+});
+
+// New refs for order details
+const recipientName = ref('');
+const getTodaysDateFormatted = () => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0'); // Months are 0-indexed
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+const orderDate = ref(getTodaysDateFormatted()); // Initialize with today's date formatted
 
 const handleCategorySelected = (categoryId: number) => {
   selectedCategoryId.value = categoryId;
@@ -81,18 +162,41 @@ const calculateOrderTotal = computed(() => {
   return currentOrderItems.value.reduce((total, item) => total + item.subtotal, 0);
 });
 
-const saveOrder = () => {
+const saveOrder = async () => {
   if (currentOrderItems.value.length === 0) {
-    console.warn('Cannot save an empty order.');
-    // Optionally, provide user feedback (e.g., alert or notification)
+    ElMessage.warning('Your order is empty. Please add items before saving.');
     return;
   }
-  console.log('Saving order:', JSON.parse(JSON.stringify(currentOrderItems.value))); // Deep copy for logging
-  // Here, you would typically send the order to a backend API
-  // For now, just logging. You might want to clear the order or give feedback.
-  alert('Order saved to console! (Mock implementation)');
-  // currentOrderItems.value = []; // Optionally clear order after saving
-  // selectedCategoryId.value = null; // Optionally reset category selection
+
+  isSaving.value = true;
+
+  // Use values from the new input fields
+  const itemsToSave = currentOrderItems.value.map(item => ({
+    product_id: item.productId, // Assuming currentOrderItems have productId
+    quantity: item.quantity,
+    // Backend will fetch name, price, etc., based on product_id
+  }));
+
+  const orderPayload = {
+    recipient: recipientName.value.trim(), // Use recipientName ref
+    date: orderDate.value, // Use orderDate ref (already formatted)
+    items: itemsToSave,
+  };
+
+  try {
+    await createOrder(orderPayload);
+    ElMessage.success('Order created successfully!');
+    currentOrderItems.value = []; // Clear the current order
+    selectedCategoryId.value = null; 
+    recipientName.value = ''; // Clear recipient name
+    orderDate.value = getTodaysDateFormatted(); // Reset date to today
+    // router.push({ name: 'OrderToday' }); 
+  } catch (error) {
+    console.error('Error creating order:', error);
+    ElMessage.error('Failed to create order: ' + (error instanceof Error ? error.message : 'Unknown error'));
+  } finally {
+    isSaving.value = false;
+  }
 };
 </script>
 
@@ -101,37 +205,179 @@ const saveOrder = () => {
   display: flex;
   height: 100vh; /* Full viewport height */
   font-family: Arial, sans-serif;
-  background-color: #f9f9f9;
+  background-color: #eef1f5; /* Consistent light background */
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; /* Consistent font */
+}
+
+.mobile-toggles {
+    display: none; /* Hidden by default, shown on small screens via media query */
+    padding: 10px 15px; /* Adjusted padding */
+    background-color: #2c3e50; /* Match AppHeader */
+  width: 100%;
+  box-sizing: border-box;
+  gap: 10px;
+}
+
+.mobile-toggle-btn {
+    background-color: #007bff; 
+  color: white;
+  border: none;
+    font-size: 0.9em; /* Adjusted font size */
+    margin-right: 10px; /* Added margin */
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9em;
+}
+.mobile-toggle-btn.summary-toggle-btn {
+  background-color: #28a745;
+}
+
+
+.sidebar-container,
+.order-summary-container {
+  background-color: #ffffff; 
+  overflow-y: auto;
+  transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1); /* Subtle shadow */
+  z-index: 1000; 
 }
 
 .sidebar-container {
-  width: 220px; /* Fixed width for sidebar */
-  flex-shrink: 0; /* Prevent sidebar from shrinking */
-  border-right: 1px solid #ccc;
-  background-color: #fff;
-  overflow-y: auto; /* Scroll if content overflows */
+  width: 240px; 
+  flex-shrink: 0;
+  border-right: 1px solid #e0e0e0; 
 }
 
 .product-list-container {
-  flex-grow: 1; /* Takes up remaining space */
+  flex-grow: 1;
   padding: 20px;
-  overflow-y: auto; /* Scroll if content overflows */
-  background-color: #fff;
-  margin-left: 10px; /* Spacing between sidebar and product list */
-  margin-right: 10px; /* Spacing between product list and order summary */
-  border-radius: 8px;
-  box-shadow: 0 0 10px rgba(0,0,0,0.05);
+  overflow-y: auto;
+  background-color: transparent; 
 }
 
 .order-summary-container {
-  width: 300px; /* Fixed width for order summary */
-  flex-shrink: 0; /* Prevent summary from shrinking */
-  padding: 20px;
-  border-left: 1px solid #ccc;
-  background-color: #f0f2f5;
+  width: 320px;
+  flex-shrink: 0;
+  border-left: 1px solid #e0e0e0; 
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
+}
+
+.close-btn {
+  display: none; /* Hidden by default */
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: #ccc;
+  border: none;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  font-size: 14px;
+  line-height: 24px;
+  text-align: center;
+  cursor: pointer;
+  z-index: 1010;
+}
+.mobile-only { /* Helper class to show elements only in mobile/tablet toggle view */
+    /* display: none; by default, shown by media queries */
+}
+
+
+/* Tablet and Mobile common styles for panels */
+@media (max-width: 1024px) { /* Tablet and below */
+  .mobile-toggles {
+    display: flex; /* Show toggle buttons */
+    position: sticky; /* Stick to top below AppHeader */
+    top: 0; /* Adjust if AppHeader has a fixed height, e.g., top: 60px; */
+    background-color: #2c3e50; /* Match AppHeader */
+    z-index: 999; /* Below panels but above product list */
+  }
+
+  .item-selection-page {
+    flex-direction: row; /* Keep horizontal layout for product list */
+    /* If AppHeader is fixed, add padding-top to item-selection-page
+       to prevent mobile-toggles from being obscured by AppHeader */
+    /* padding-top: 50px; Adjust based on AppHeader height */
+  }
+  
+  .sidebar-container,
+  .order-summary-container {
+    position: fixed; /* Off-canvas */
+    top: 0; /* Align with viewport top */
+    /* If AppHeader is fixed and mobile-toggles are not sticky, adjust top:
+       Example: top: var(--app-header-height, 60px); 
+       And mobile-toggles would also need this offset or be part of AppHeader.
+       For simplicity, assuming mobile-toggles are sticky or AppHeader isn't fixed. */
+    height: 100vh; /* Full viewport height */
+    box-shadow: 0 0 20px rgba(0,0,0,0.25);
+  }
+
+  .sidebar-container {
+    left: 0;
+    transform: translateX(-105%); /* Hide completely */
+  }
+
+  .order-summary-container {
+    right: 0;
+    transform: translateX(105%); /* Hide completely */
+  }
+
+  .sidebar-container.is-visible,
+  .order-summary-container.is-visible {
+    transform: translateX(0);
+  }
+
+  .product-list-container {
+    margin-left: 0; 
+    margin-right: 0;
+    width: 100%; /* Ensure product list takes full width */
+  }
+
+  .close-btn.mobile-only {
+    display: block;
+  }
+}
+
+@media (max-width: 768px) { /* Mobile specific */
+  .sidebar-container {
+    width: 85%; /* Take more width on mobile */
+    max-width: 300px;
+  }
+  .order-summary-container {
+    width: 90%; /* Take more width on mobile */
+    max-width: 320px; 
+  }
+  .product-list-container {
+    padding: 10px; /* Further reduce padding */
+  }
+  .mobile-toggles {
+    padding: 8px 10px; /* Adjust padding */
+  }
+  .mobile-toggle-btn {
+    padding: 6px 10px;
+    font-size: 0.85em;
+  }
+}
+
+
+.order-details-form {
+  margin-bottom: 20px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #ddd;
+}
+
+.order-details-form .form-item {
+  margin-bottom: 15px;
+}
+
+.order-details-form .form-item label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 500;
+  font-size: 0.9em;
+  color: #555;
 }
 
 .order-summary-container h3 {

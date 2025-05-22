@@ -1,23 +1,26 @@
 <template>
   <div class="product-list">
     <h2>Products</h2>
-    <div v-if="filteredProducts.length === 0" class="no-products">
-      <p>No products found for this category.</p>
+    <div v-if="isLoading" class="loading-message">Loading products...</div>
+    <div v-if="errorMessage" class="error-message">{{ errorMessage }}</div>
+    <div v-if="!isLoading && !errorMessage && products.length === 0" class="no-products">
+      <p>No products to display.</p>
     </div>
-    <div v-else class="product-grid">
-      <div v-for="product in filteredProducts" :key="product.id" class="product-item">
+    <div v-if="!isLoading && !errorMessage && products.length > 0" class="product-grid">
+      <div v-for="product in products" :key="product.id" class="product-item">
         <img :src="product.image_url" :alt="product.name" class="product-image" />
         <h3>{{ product.name }}</h3>
         <p class="description">{{ product.description }}</p>
         <p class="price">${{ product.price.toFixed(2) }}</p>
-        <button @click="addToOrder(product)">Add to Order</button>
+        <el-button type="primary" @click="addToOrder(product)" class="add-to-order-btn">Add to Order</el-button>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, defineProps, defineEmits } from 'vue';
+import { ref, watch, onMounted, defineProps, defineEmits } from 'vue'; // Removed computed, added watch, onMounted
+import { fetchProducts } from '../../utils/apiClient'; // Added fetchProducts import
 
 interface Product {
   id: number;
@@ -32,26 +35,50 @@ const props = defineProps<{
   categoryId?: number | null;
 }>();
 
-const allProducts = ref<Product[]>([
-  { id: 1, categoryId: 1, name: 'Frozen Peas', description: 'Sweet and tender frozen green peas.', price: 2.99, image_url: 'https://via.placeholder.com/150/92c952' },
-  { id: 2, categoryId: 1, name: 'Ice Cream', description: 'Rich vanilla bean ice cream.', price: 5.49, image_url: 'https://via.placeholder.com/150/771796' },
-  { id: 3, categoryId: 1, name: 'Frozen Pizza', description: 'Classic pepperoni pizza with a crispy crust.', price: 7.99, image_url: 'https://via.placeholder.com/150/24f355' },
-  { id: 4, categoryId: 2, name: 'Apples', description: 'Crisp and juicy red apples, perfect for snacking.', price: 3.50, image_url: 'https://via.placeholder.com/150/d32776' },
-  { id: 5, categoryId: 2, name: 'Bananas', description: 'Ripe yellow bananas, sold by the bunch.', price: 1.99, image_url: 'https://via.placeholder.com/150/f66b97' },
-  { id: 6, categoryId: 2, name: 'Carrots', description: 'Fresh organic carrots, great for cooking or raw.', price: 2.20, image_url: 'https://via.placeholder.com/150/f69b97' },
-  { id: 7, categoryId: 3, name: 'Sourdough Bread', description: 'Artisan sourdough bread with a tangy flavor.', price: 4.50, image_url: 'https://via.placeholder.com/150/56a8c2' },
-  { id: 8, categoryId: 3, name: 'Croissants', description: 'Buttery and flaky croissants, baked fresh daily.', price: 1.75, image_url: 'https://via.placeholder.com/150/b0f7cc' },
-  { id: 9, categoryId: 4, name: 'Orange Juice', description: 'Freshly squeezed orange juice, 1 liter.', price: 3.99, image_url: 'https://via.placeholder.com/150/fb0000' },
-  { id: 10, categoryId: 4, name: 'Sparkling Water', description: 'Natural sparkling mineral water, 750ml.', price: 1.50, image_url: 'https://via.placeholder.com/150/289781' },
-  { id: 11, categoryId: 5, name: 'Pasta', description: 'Imported Italian spaghetti, 500g.', price: 2.10, image_url: 'https://via.placeholder.com/150/808080' },
-  { id: 12, categoryId: 5, name: 'Rice', description: 'Long-grain white rice, 1kg bag.', price: 3.00, image_url: 'https://via.placeholder.com/150/000000' }
-]);
+const products = ref<Product[]>([]); // Renamed from allProducts, initialized empty
+const isLoading = ref(false);
+const errorMessage = ref<string | null>(null);
 
-const filteredProducts = computed(() => {
-  if (props.categoryId === undefined || props.categoryId === null) {
-    return allProducts.value; // Show all products if no categoryId is provided
+const loadProducts = async (currentCategoryId?: number | null) => {
+  isLoading.value = true;
+  errorMessage.value = null;
+  try {
+    // Assuming fetchProducts returns the array of products directly
+    // If it returns { data: { products: [] } } or similar, adjust access:
+    // const response = await fetchProducts(currentCategoryId);
+    // products.value = response.data.products (or response.data if it's the array)
+    const fetchedData = await fetchProducts(currentCategoryId);
+     if (Array.isArray(fetchedData)) { // Simple check
+        products.value = fetchedData;
+    } else if (fetchedData && Array.isArray(fetchedData.data)) { // Common { data: [] }
+        products.value = fetchedData.data;
+    } else if (fetchedData && fetchedData.data && Array.isArray(fetchedData.data.products)) { // Common { data: { products: [] } }
+        products.value = fetchedData.data.products;
+    }
+     else {
+        console.error('Unexpected data structure from fetchProducts:', fetchedData);
+        products.value = []; // Default to empty array
+        errorMessage.value = 'Could not load products (unexpected format).';
+    }
+  } catch (err) {
+    console.error('Error fetching products:', err);
+    errorMessage.value = (err instanceof Error ? err.message : 'An unknown error occurred');
+     if (errorMessage.value && errorMessage.value.toLowerCase().includes('network error')) {
+        errorMessage.value = 'Network Error: Could not connect to server.';
+    } else if (!errorMessage.value) {
+        errorMessage.value = 'Failed to fetch products.';
+    }
+  } finally {
+    isLoading.value = false;
   }
-  return allProducts.value.filter(product => product.categoryId === props.categoryId);
+};
+
+watch(() => props.categoryId, (newCategoryId) => {
+  loadProducts(newCategoryId);
+});
+
+onMounted(() => {
+  loadProducts(props.categoryId);
 });
 
 const emit = defineEmits<{
@@ -66,7 +93,7 @@ const addToOrder = (product: Product) => {
 <style scoped>
 .product-list {
   padding: 20px;
-  font-family: Arial, sans-serif;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; /* Consistent font */
 }
 
 .product-list h2 {
@@ -83,20 +110,27 @@ const addToOrder = (product: Product) => {
 }
 
 .product-item {
-  border: 1px solid #ddd;
+  border: 1px solid #e0e0e0; /* Lighter border */
   border-radius: 8px;
   padding: 15px;
-  background-color: #fff;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  background-color: #ffffff;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08); /* Slightly softer shadow */
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
+  min-height: 320px; /* Ensure some consistency in card height */
+  transition: box-shadow 0.3s ease;
+}
+
+.product-item:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.12);
 }
 
 .product-image {
-  width: 150px;
-  height: 150px;
+  width: 100%; /* Make image responsive within its container */
+  max-width: 160px; /* Max width of the image */
+  height: 160px; /* Fixed height */
   object-fit: cover;
   border-radius: 4px;
   margin-bottom: 10px;
@@ -110,36 +144,89 @@ const addToOrder = (product: Product) => {
 
 .description {
   font-size: 0.9em;
-  color: #666;
-  flex-grow: 1; /* Allows description to take available space */
-  margin-bottom: 10px;
+  color: #555; /* Darker gray for better readability */
+  flex-grow: 1; 
+  margin-bottom: 12px;
+  line-height: 1.4;
+  /* For text truncation: */
+  display: -webkit-box;
+  -webkit-line-clamp: 3; /* Max 3 lines */
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-height: calc(1.4em * 3); /* Approx height for 3 lines, adjust based on actual line-height */
 }
 
 .price {
-  font-size: 1em;
-  font-weight: bold;
-  color: #007bff;
-  margin-bottom: 10px;
+  font-size: 1.1em; /* Slightly larger price */
+  font-weight: 600; /* Semi-bold */
+  color: #333; /* Darker price color */
+  margin-bottom: 12px;
 }
 
-.product-item button {
-  padding: 8px 15px;
-  background-color: #007bff;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background-color 0.2s;
+.add-to-order-btn {
+  /* el-button will have its own styling, this class is for potential overrides or if not using el-button */
+  width: 100%; /* Make button take full width of its container (within padding of card) */
   margin-top: auto; /* Pushes button to the bottom of the card */
-}
-
-.product-item button:hover {
-  background-color: #0056b3;
 }
 
 .no-products {
   text-align: center;
   padding: 20px;
   color: #777;
+}
+
+.loading-message,
+.error-message {
+  padding: 10px;
+  text-align: center;
+  color: #555;
+  margin-bottom: 15px;
+}
+
+.error-message {
+  color: #e74c3c; /* Red for errors */
+  background-color: #fdd; /* Light red background */
+  border: 1px solid #e74c3c;
+  border-radius: 4px;
+}
+
+/* Responsive adjustments for product grid */
+@media (max-width: 768px) { /* Mobile */
+  .product-grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); /* Smaller min for 2 columns if possible */
+    gap: 15px;
+  }
+  .product-item {
+    min-height: 280px; /* Adjust min-height for smaller cards */
+    padding: 10px;
+  }
+  .product-list {
+    padding: 15px; /* Reduce overall padding */
+  }
+  .product-image {
+    max-width: 120px;
+    height: 120px;
+  }
+  .product-item h3 {
+    font-size: 1em;
+  }
+  .description {
+    font-size: 0.85em;
+    min-height: calc(1.4em * 2); /* Show 2 lines on mobile */
+    -webkit-line-clamp: 2;
+  }
+  .price {
+    font-size: 1em;
+  }
+}
+
+@media (max-width: 480px) { /* Smaller Mobile */
+  .product-grid {
+    grid-template-columns: 1fr; /* Single column */
+  }
+   .product-item {
+    min-height: auto; /* Auto height for single column items */
+  }
 }
 </style>

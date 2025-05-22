@@ -100,3 +100,27 @@ export async function createOrderFromMessage(text: string, recipient?: string) {
     throw handleError(error as AxiosError, 'Failed to create order from message');
   }
 }
+
+// Function to fetch all categories
+export async function fetchCategories() {
+  try {
+    const response = await apiClient.get('/categories');
+    return response.data;
+  } catch (error) {
+    throw handleError(error as AxiosError, 'Error fetching categories');
+  }
+}
+
+// Function to fetch products, optionally by categoryId
+export async function fetchProducts(categoryId?: number) {
+  try {
+    let url = '/products';
+    if (typeof categoryId === 'number') {
+      url += `?category_id=${categoryId}`;
+    }
+    const response = await apiClient.get(url);
+    return response.data;
+  } catch (error) {
+    throw handleError(error as AxiosError, 'Error fetching products');
+  }
+}

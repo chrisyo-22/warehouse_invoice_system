@@ -3,6 +3,7 @@ import HomePage from "../page/HomePage.vue";
 import Dashboard from "../page/Dashboard.vue";
 import OrderToday from "../page/OrderToday.vue";
 import PastOrders from "../page/PastOrders.vue";
+import ItemSelectionPage from "../page/ItemSelectionPage.vue"; // Added import
 import Invoice from "../page/Invoice.vue";
 import Login from "../page/Login.vue";
 import Register from "../page/Register.vue";
@@ -31,6 +32,12 @@ const router = createRouter({
                     path: "past-orders",
                     name: "PastOrders",
                     component: PastOrders,
+                    meta: { requiresAuth: true }
+                },
+                {
+                    path: "item-selection", // New route
+                    name: "ItemSelectionPage",
+                    component: ItemSelectionPage,
                     meta: { requiresAuth: true }
                 },
                 {

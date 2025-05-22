@@ -2,10 +2,28 @@
   <div>
     <div v-if="!selectedOrder">
       <div class="header-controls">
-        <el-button type="success" @click="addNewOrder" :loading="isLoading">Add New Order</el-button>
+        <el-button type="success" @click="addNewOrder">Add New Order</el-button> <!-- Removed :loading="isLoading" -->
         <el-button type="primary" @click="showCreateWithMessageDialog" :loading="isLoading">
           Create from Message
         </el-button>
+      </div>
+
+      <div class="filters-container" style="margin-bottom: 20px; display: flex; gap: 10px; align-items: center;">
+        <el-select 
+          v-model="selectedStatusFilter" 
+          placeholder="Filter by Status" 
+          clearable 
+          class="status-filter-dropdown"
+          style="width: 200px;"
+        >
+          <el-option
+            v-for="option in statusOptions"
+            :key="option.value"
+            :label="option.label"
+            :value="option.value"
+          />
+        </el-select>
+        <!-- Add other filters here if needed -->
       </div>
       
       <!-- Create from Message Dialog -->
@@ -41,12 +59,18 @@
       </el-dialog>
 
       <el-table 
-        :data="ordersToDisplay"  <!-- Changed to use computed property -->
+        :data="ordersToDisplay"
         v-loading="isLoading"
         empty-text="No orders matching criteria (status: pending/active, created in last 3 days)."
       >
         <el-table-column prop="id" label="Order ID" width="180" />
-        <el-table-column prop="status" label="Status" width="100" /> <!-- Added status column -->
+        <el-table-column prop="status" label="Status" width="120"> <!-- Adjusted width -->
+          <template #default="{ row }">
+            <el-tag :type="getStatusTagType(row.status)" disable-transitions>
+              {{ row.status }}
+            </el-tag>
+          </template>
+        </el-table-column>
         <el-table-column label="Date" width="180">
           <template #default="{ row }">
             {{ formatDate(row.date) }}
@@ -96,6 +120,7 @@
 <script lang="ts" setup>
 import { ref, nextTick, onMounted, computed } from 'vue';
 import { useStore } from 'vuex';
+import { useRouter } from 'vue-router'; // Added useRouter
 import OrderList from './OrderList.vue';
 import type { Order } from '../types';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -109,9 +134,10 @@ import {
 } from '../utils/apiClient';
 
 const store = useStore();
+const router = useRouter(); 
 const user = computed(() => store.getters['auth/user']);
 
-const allFetchedOrders = ref<Order[]>([]); // Renamed from 'orders'
+const allFetchedOrders = ref<Order[]>([]); 
 const selectedOrder = ref<Order | null>(null);
 const editingId = ref<string | null>(null);
 const isLoading = ref(false);
@@ -123,6 +149,25 @@ const messageForm = ref({
   original_message: '',
   recipient: ''
 });
+
+// Status filter refs and options
+const selectedStatusFilter = ref('');
+const statusOptions = [
+  { value: '', label: 'All Today\'s Orders' }, // Clarified label
+  { value: 'pending', label: 'Pending' },
+  { value: 'active', label: 'Active' },
+  // Add other relevant statuses if they can appear in "OrderToday" context
+];
+
+const getStatusTagType = (status: string): string => {
+  if (!status) return 'info'; // Default for undefined/empty status
+  const lowerStatus = status.toLowerCase();
+  if (lowerStatus === 'pending') return 'warning';
+  if (lowerStatus === 'active' || lowerStatus === 'processing') return 'primary';
+  if (lowerStatus === 'completed' || lowerStatus === 'paid') return 'success';
+  if (lowerStatus === 'cancelled' || lowerStatus === 'failed') return 'danger';
+  return 'info'; 
+};
 
 // Load orders on mount
 onMounted(async () => {
@@ -215,54 +260,8 @@ const deleteOrder = async (orderId: number) => {
   }
 };
 
-const addNewOrder = async () => {
-  try {
-    // Prompt for recipient
-    const { value: recipient } = await ElMessageBox.prompt('Who is this order for?', 'New Order', {
-      confirmButtonText: 'Create',
-      cancelButtonText: 'Cancel',
-      inputPlaceholder: 'Enter recipient name',
-      inputValidator: (value) => {
-        if (!value || value.trim() === '') {
-          return 'Recipient name cannot be empty';
-        }
-        return true;
-      },
-      beforeClose: (action, instance, done) => {
-        if (action === 'confirm' && (!instance.inputValue || instance.inputValue.trim() === '')) {
-          ElMessage.warning('Please enter a recipient name');
-          return;
-        }
-        done();
-      }
-    });
-
-    if (recipient && recipient.trim() !== '') {
-      // Get current date in UTC
-      const now = new Date();
-      const year = now.getFullYear();
-      const month = String(now.getMonth() + 1).padStart(2, '0');
-      const day = String(now.getDate()).padStart(2, '0');
-      const formattedDate = `${year}-${month}-${day}`;
-
-      const newOrder = {
-        date: formattedDate,
-        recipient: recipient.trim(),
-        owner: user.value?.id,
-        items: []
-      };
-
-      const response = await createOrder(newOrder);
-      if (response.data) {
-        allFetchedOrders.value.unshift(response.data); // Update allFetchedOrders
-        ElMessage.success('Order created successfully');
-        viewOrder(response.data);
-      }
-    }
-  } catch (error) {
-    ElMessage.error('Failed to create order');
-    console.error('Error creating order:', error);
-  }
+const addNewOrder = () => { // Changed to non-async, removed old logic
+  router.push({ name: 'ItemSelectionPage' });
 };
 
 const isEditing = (id: string) => editingId.value === id;
@@ -341,26 +340,37 @@ const displayStatuses = ['pending', 'active'];
 const ordersToDisplay = computed(() => {
   const threeDaysAgo = new Date();
   threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
-  threeDaysAgo.setHours(0, 0, 0, 0); // Set to the beginning of the day, 3 days ago
+  threeDaysAgo.setHours(0, 0, 0, 0); 
+
+  const defaultDisplayStatuses = ['pending', 'active']; // Base statuses for "Order Today"
 
   return allFetchedOrders.value.filter(order => {
-    // Ensure order.created_at and order.status are valid before processing
     if (!order.created_at || typeof order.status !== 'string') {
-      // console.warn(`Order ID ${order.id} is missing created_at or status, or status is not a string.`);
       return false;
     }
     try {
       const orderDate = new Date(order.created_at);
-      // Check if date parsing was successful
       if (isNaN(orderDate.getTime())) {
-        // console.warn(`Order ID ${order.id} has an invalid created_at date: ${order.created_at}`);
         return false; 
       }
-      // Ensure status comparison is case-insensitive
-      return orderDate >= threeDaysAgo && displayStatuses.includes(order.status.toLowerCase());
+
+      const isRecent = orderDate >= threeDaysAgo;
+      const statusLower = order.status.toLowerCase();
+      const isDefaultStatus = defaultDisplayStatuses.includes(statusLower);
+      
+      // Apply default page filters (recent and specific statuses)
+      if (!isRecent || !isDefaultStatus) {
+        return false;
+      }
+
+      // Apply user-selected filter (if any)
+      if (selectedStatusFilter.value && statusLower !== selectedStatusFilter.value.toLowerCase()) {
+        return false;
+      }
+      
+      return true; // Passes all filters
     } catch (e) {
-      // console.error(`Error processing order ID ${order.id} for display:`, e);
-      return false; // Exclude if any error during processing
+      return false; 
     }
   }).sort((a, b) => {
     // Sort by newest first; ensure created_at is valid before sorting
