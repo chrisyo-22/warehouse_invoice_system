@@ -14,7 +14,7 @@ export async function listOrders(context: Context) {
     const { date, recipient } = context.request.url.searchParams;
     const userId = context.state.user.id;
     let orderQuery = `
-      SELECT id, date, recipient, owner, invoice_number, created_at, updated_at
+      SELECT id, date, recipient, owner, invoice_number, status, created_at, updated_at
       FROM orders 
       WHERE owner = ?
     `;
@@ -70,7 +70,7 @@ export async function getOrder(context: Context) {
       return;
     }
     const orderResult = await db.execute(
-      "SELECT id, date, recipient, owner, invoice_number, original_message, created_at, updated_at FROM orders WHERE id = ? AND owner = ?",
+      "SELECT id, date, recipient, owner, invoice_number, original_message, status, created_at, updated_at FROM orders WHERE id = ? AND owner = ?",
       [id, userId]
     );
     if (!orderResult.rows.length) {
@@ -196,6 +196,7 @@ export async function createOrder(context: Context) {
         recipient: orderDetails.recipient,
         owner: orderDetails.owner,
         invoice_number: orderDetails.invoice_number,
+        status: orderDetails.status, // Added status field
         original_message: orderDetails.original_message,
         items: Array.isArray(itemsResult.rows) ? itemsResult.rows.map((item: any) => ({
           id: item.item_id,
@@ -233,28 +234,74 @@ export async function updateOrder(context: Context) {
   try {
     const orderId = context.params.id;
     const userId = context.state.user.id;
+
     if (!orderId || isNaN(Number(orderId))) {
       context.response.status = 400;
       context.response.body = { status: "error", message: "Invalid order ID", code: "INVALID_ID" };
       return;
     }
     const id = parseInt(orderId);
+
+    if (!context.request.hasBody) {
+        setErrorResponse(context, 400, "No request body", "INVALID_REQUEST");
+        return;
+    }
     const orderData = await context.request.body.json();
-    // Validate fields (optional: add more validation)
-    if (!orderData) {
+
+    if (Object.keys(orderData).length === 0) { 
       context.response.status = 400;
-      context.response.body = { status: "error", message: "No data provided", code: "INVALID_REQUEST" };
+      context.response.body = { status: "error", message: "No data provided for update", code: "INVALID_REQUEST" };
       return;
     }
-    // Update order
-    await db.execute(
-      "UPDATE orders SET date = ?, recipient = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND owner = ?",
-      [orderData.date, orderData.recipient, id, userId]
-    );
-    // Optionally update items (not implemented here)
-    const updatedOrder = await db.execute("SELECT * FROM orders WHERE id = ? AND owner = ?", [id, userId]);
-    context.response.body = { status: "success", data: updatedOrder.rows[0] };
+
+    const updates: string[] = [];
+    const params: any[] = [];
+
+    if (orderData.date !== undefined) {
+      updates.push("date = ?");
+      params.push(orderData.date);
+    }
+    if (orderData.recipient !== undefined) {
+      updates.push("recipient = ?");
+      params.push(orderData.recipient);
+    }
+    if (orderData.status !== undefined) {
+      updates.push("status = ?");
+      params.push(orderData.status);
+    }
+    // Add other fields from orderData as needed, e.g. original_message
+
+    if (updates.length === 0) {
+      context.response.status = 400;
+      context.response.body = { status: "error", message: "No updatable fields provided", code: "NO_FIELDS_TO_UPDATE" };
+      return;
+    }
+
+    updates.push("updated_at = CURRENT_TIMESTAMP");
+
+    const query = `UPDATE orders SET ${updates.join(", ")} WHERE id = ? AND owner = ?`;
+    params.push(id);
+    params.push(userId);
+
+    const updateResult = await db.execute(query, params);
+    
+    if (updateResult.affectedRows === 0) { // Check if any row was actually updated
+        context.response.status = 404; 
+        context.response.body = { status: "error", message: "Order not found, not authorized to update, or no data changed", code: "NOT_FOUND_OR_UNAUTHORIZED_OR_NO_CHANGE" };
+        return;
+    }
+
+    const updatedOrderResult = await db.execute("SELECT * FROM orders WHERE id = ? AND owner = ?", [id, userId]);
+    // Ensure an order was actually found after update attempt (should be redundant if affectedRows > 0 but good practice)
+    if (!updatedOrderResult.rows || updatedOrderResult.rows.length === 0) {
+        context.response.status = 404;
+        context.response.body = { status: "error", message: "Order not found after update", code: "NOT_FOUND" };
+        return;
+    }
+    context.response.body = { status: "success", data: updatedOrderResult.rows[0] };
+
   } catch (error) {
+    console.error("Error in updateOrder:", error); 
     context.response.status = 500;
     context.response.body = { status: "error", message: error.message || "Internal server error", code: "SERVER_ERROR" };
   }

@@ -1,95 +1,102 @@
 // src/utils/apiClient.ts
-
+import axios, { AxiosError } from 'axios';
 import store from '../store';
 
-// Helper function to get headers with auth token
-function getHeaders() {
-  const token = store.getters['auth/token'];
-  return {
-    'Content-Type': 'application/json',
-    'Authorization': token ? `Bearer ${token}` : ''
-  };
-}
+// Create an Axios instance
+const apiClient = axios.create({
+  baseURL: '/api', // All API calls are relative to /api
+});
+
+// Axios request interceptor to add the auth token and common headers
+apiClient.interceptors.request.use(
+  (config) => {
+    const token = store.getters['auth/token'];
+    if (token) {
+      config.headers['Authorization'] = `Bearer ${token}`;
+    }
+    config.headers['Content-Type'] = 'application/json';
+    config.headers['Accept'] = 'application/json';
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// Standardized error handler for Axios requests
+const handleError = (error: AxiosError, defaultMessage: string): Error => {
+  if (error.response) {
+    // The request was made and the server responded with a status code
+    // that falls out of the range of 2xx
+    const responseData = error.response.data as { message?: string };
+    return new Error(responseData?.message || error.response.statusText || defaultMessage);
+  } else if (error.request) {
+    // The request was made but no response was received
+    return new Error('Network error: No response received from server.');
+  } else {
+    // Something happened in setting up the request that triggered an Error
+    return new Error(error.message || defaultMessage);
+  }
+};
 
 // Function to fetch all orders
 export async function fetchOrders() {
-  const response = await fetch(`/api/orders`, {
-    headers: getHeaders()
-  });
-  if (!response.ok) {
-    throw new Error(`Error fetching orders: ${response.statusText}`);
+  try {
+    const response = await apiClient.get('/orders');
+    return response.data;
+  } catch (error) {
+    throw handleError(error as AxiosError, 'Error fetching orders');
   }
-  return response.json();
 }
 
 // Function to fetch a single order by ID
 export async function fetchOrderById(orderId: number) {
-  const response = await fetch(`/api/order/${orderId}`, {
-    headers: getHeaders()
-  });
-  if (!response.ok) {
-    throw new Error(`Error fetching order: ${response.statusText}`);
+  try {
+    const response = await apiClient.get(`/order/${orderId}`);
+    return response.data;
+  } catch (error) {
+    throw handleError(error as AxiosError, 'Error fetching order');
   }
-  return response.json();
 }
 
 // Function to create a new order
 export async function createOrder(orderData: any) {
-  const response = await fetch(`/api/order`, {
-    method: "POST",
-    headers: getHeaders(),
-    body: JSON.stringify(orderData),
-  });
-  if (!response.ok) {
-    throw new Error(`Error creating order: ${response.statusText}`);
+  try {
+    const response = await apiClient.post('/order', orderData);
+    return response.data;
+  } catch (error) {
+    throw handleError(error as AxiosError, 'Error creating order');
   }
-  return response.json();
 }
 
 // Function to update an existing order
 export async function updateOrder(orderId: number, updateData: any) {
-  const response = await fetch(`/api/order/${orderId}`, {
-    method: "PUT",
-    headers: getHeaders(),
-    body: JSON.stringify(updateData),
-  });
-  if (!response.ok) {
-    throw new Error(`Error updating order: ${response.statusText}`);
+  try {
+    const response = await apiClient.put(`/order/${orderId}`, updateData);
+    return response.data;
+  } catch (error) {
+    throw handleError(error as AxiosError, 'Error updating order');
   }
-  return response.json();
 }
 
 // Function to delete an order
 export async function deleteOrder(orderId: number) {
-  const response = await fetch(`/api/order/${orderId}`, {
-    method: "DELETE",
-    headers: getHeaders()
-  });
-  if (!response.ok) {
-    throw new Error(`Error deleting order: ${response.statusText}`);
+  try {
+    const response = await apiClient.delete(`/order/${orderId}`);
+    return response.data;
+  } catch (error) {
+    throw handleError(error as AxiosError, 'Error deleting order');
   }
-  return response.json();
 }
 
+// Function to create an order from a text message
 export async function createOrderFromMessage(text: string, recipient?: string) {
   try {
-    const response = await fetch(`/api/order/parse`, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify({
-        text,
-        recipient
-      })
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to create order from message');
-    }
-
-    return await response.json();
+    const response = await apiClient.post('/order/parse', { text, recipient });
+    return response.data;
   } catch (error) {
-    console.error('Error creating order from message:', error);
-    throw error;
+    // Log the original error for more details in development if needed
+    console.error('Detailed error creating order from message:', error); 
+    throw handleError(error as AxiosError, 'Failed to create order from message');
   }
 }

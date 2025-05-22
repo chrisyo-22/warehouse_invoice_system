@@ -41,11 +41,12 @@
       </el-dialog>
 
       <el-table 
-        :data="orders" 
+        :data="ordersToDisplay"  <!-- Changed to use computed property -->
         v-loading="isLoading"
-        empty-text="No orders found. Click 'Add New Order' to create one."
+        empty-text="No orders matching criteria (status: pending/active, created in last 3 days)."
       >
         <el-table-column prop="id" label="Order ID" width="180" />
+        <el-table-column prop="status" label="Status" width="100" /> <!-- Added status column -->
         <el-table-column label="Date" width="180">
           <template #default="{ row }">
             {{ formatDate(row.date) }}
@@ -110,7 +111,7 @@ import {
 const store = useStore();
 const user = computed(() => store.getters['auth/user']);
 
-const orders = ref<Order[]>([]);
+const allFetchedOrders = ref<Order[]>([]); // Renamed from 'orders'
 const selectedOrder = ref<Order | null>(null);
 const editingId = ref<string | null>(null);
 const isLoading = ref(false);
@@ -128,7 +129,7 @@ onMounted(async () => {
   try {
     isLoading.value = true;
     const response = await fetchOrders();
-    orders.value = response.data.orders;
+    allFetchedOrders.value = response.data.orders; // Updated to use allFetchedOrders
   } catch (error) {
     ElMessage.error('Failed to load orders');
     console.error('Error loading orders:', error);
@@ -206,7 +207,7 @@ const viewOrder = async (order: Order) => {
 const deleteOrder = async (orderId: number) => {
   try {
     await deleteOrderApi(orderId);
-    orders.value = orders.value.filter(order => order.id !== orderId);
+    allFetchedOrders.value = allFetchedOrders.value.filter(order => order.id !== orderId); // Update allFetchedOrders
     ElMessage.success('Order deleted successfully');
   } catch (error) {
     ElMessage.error('Failed to delete order');
@@ -253,7 +254,7 @@ const addNewOrder = async () => {
 
       const response = await createOrder(newOrder);
       if (response.data) {
-        orders.value.unshift(response.data);
+        allFetchedOrders.value.unshift(response.data); // Update allFetchedOrders
         ElMessage.success('Order created successfully');
         viewOrder(response.data);
       }
@@ -282,9 +283,14 @@ const finishEditing = (order: Order) => {
 const updateRecipient = async (order: Order) => {
   try {
     await updateOrder(Number(order.id), { recipient: order.recipient });
-    const index = orders.value.findIndex(o => o.id === order.id);
+    const index = allFetchedOrders.value.findIndex(o => o.id === order.id); // Update allFetchedOrders
     if (index !== -1) {
-      orders.value[index].recipient = order.recipient;
+      // To ensure reactivity, especially if computed properties depend on nested object properties,
+      // it's often better to replace the item or ensure the change is detectable.
+      // A simple property assignment might be fine, but if `status` or `created_at` were part of this update
+      // and came from the server, re-fetching the item or the list would be more robust.
+      // For now, this direct update of recipient should be fine for recipient-only changes.
+      allFetchedOrders.value[index].recipient = order.recipient;
     }
     ElMessage.success('Recipient updated successfully');
   } catch (error) {
@@ -318,7 +324,7 @@ const createOrderWithMessage = async () => {
     );
 
     // Add the new order to the list
-    orders.value.push(result.data);
+    allFetchedOrders.value.push(result.data); // Update allFetchedOrders
     ElMessage.success('Order created successfully');
     showMessageDialog.value = false;
 
@@ -329,6 +335,43 @@ const createOrderWithMessage = async () => {
     isCreating.value = false;
   }
 };
+
+const displayStatuses = ['pending', 'active'];
+
+const ordersToDisplay = computed(() => {
+  const threeDaysAgo = new Date();
+  threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+  threeDaysAgo.setHours(0, 0, 0, 0); // Set to the beginning of the day, 3 days ago
+
+  return allFetchedOrders.value.filter(order => {
+    // Ensure order.created_at and order.status are valid before processing
+    if (!order.created_at || typeof order.status !== 'string') {
+      // console.warn(`Order ID ${order.id} is missing created_at or status, or status is not a string.`);
+      return false;
+    }
+    try {
+      const orderDate = new Date(order.created_at);
+      // Check if date parsing was successful
+      if (isNaN(orderDate.getTime())) {
+        // console.warn(`Order ID ${order.id} has an invalid created_at date: ${order.created_at}`);
+        return false; 
+      }
+      // Ensure status comparison is case-insensitive
+      return orderDate >= threeDaysAgo && displayStatuses.includes(order.status.toLowerCase());
+    } catch (e) {
+      // console.error(`Error processing order ID ${order.id} for display:`, e);
+      return false; // Exclude if any error during processing
+    }
+  }).sort((a, b) => {
+    // Sort by newest first; ensure created_at is valid before sorting
+    const dateA = new Date(a.created_at);
+    const dateB = new Date(b.created_at);
+    if (isNaN(dateA.getTime()) || isNaN(dateB.getTime())) {
+        return 0; // Keep original order if dates are invalid
+    }
+    return dateB.getTime() - dateA.getTime();
+  });
+});
 </script>
 
 <style scoped>

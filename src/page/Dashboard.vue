@@ -14,9 +14,6 @@
             <el-button type="info" @click="$router.push('/past-orders')">
               View Past Orders
             </el-button>
-            <el-button type="success" @click="$router.push('/item-selection')">
-              Create New Order (with Sidebar)
-            </el-button>
           </el-card>
         </el-col>
         <el-col :span="12">

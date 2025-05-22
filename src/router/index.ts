@@ -6,7 +6,6 @@ import PastOrders from "../page/PastOrders.vue";
 import Invoice from "../page/Invoice.vue";
 import Login from "../page/Login.vue";
 import Register from "../page/Register.vue";
-import ItemSelectionPage from '../page/ItemSelectionPage.vue';
 import store from "../store";
 
 const router = createRouter({
@@ -53,13 +52,7 @@ const router = createRouter({
             name: 'InvoicePreview',
             component: Invoice,
             meta: { requiresAuth: true }
-        },
-        {
-            path: '/item-selection',
-            name: 'ItemSelection',
-            component: ItemSelectionPage,
-            meta: { requiresAuth: true }
-        },
+        }
     ],
 });
 

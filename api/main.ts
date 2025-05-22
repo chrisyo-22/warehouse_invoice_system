@@ -56,7 +56,6 @@ app.use(orderRouter.routes());
 app.use(orderRouter.allowedMethods());
 
 // Use catalog routes
-catalogRouter.prefix('/api');
 app.use(catalogRouter.routes());
 app.use(catalogRouter.allowedMethods());
 

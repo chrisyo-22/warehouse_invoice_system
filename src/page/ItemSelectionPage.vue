@@ -14,17 +14,16 @@
         <p>Your order is empty. Add items from the product list.</p>
       </div>
       <ul v-else class="order-items-list">
-        <li v-for="(item, idx) in currentOrderItems" :key="item.productId + '-' + (item.unit || 'none')" class="order-item">
+        <li v-for="item in currentOrderItems" :key="item.productId" class="order-item">
           <span class="item-name">{{ item.name }}</span>
           <span class="item-quantity">Qty: {{ item.quantity }}</span>
-          <span class="item-unit">
-            Unit:
-            <select v-model="item.unit">
-              <option v-for="unit in unitOptions" :key="unit" :value="unit">{{ unit }}</option>
-            </select>
-          </span>
+          <span class="item-price">@ ${{ item.price.toFixed(2) }}</span>
+          <span class="item-subtotal">Subtotal: ${{ item.subtotal.toFixed(2) }}</span>
         </li>
       </ul>
+      <div class="order-total" v-if="currentOrderItems.length > 0">
+        <h4>Total: ${{ calculateOrderTotal().toFixed(2) }}</h4>
+      </div>
       <button @click="saveOrder" class="save-order-button" :disabled="currentOrderItems.length === 0">
         Save Order
       </button>
@@ -36,9 +35,6 @@
 import { ref, computed } from 'vue';
 import CategorySidebar from '../component/CategorySidebar.vue';
 import ProductList from '../component/ProductList.vue';
-import { createOrder } from '../utils/apiClient';
-import { ElMessage } from 'element-plus';
-import { useStore } from 'vuex';
 
 // Define interfaces for Product (as emitted by ProductList) and OrderItem
 interface Product {
@@ -47,79 +43,56 @@ interface Product {
   price: number;
   // Assuming ProductList emits products with at least these fields
   // Add other fields if necessary, e.g., categoryId, description
-  unit?: string | null;
 }
 
 interface OrderItem {
   productId: number;
   name: string;
   quantity: number;
-  unit?: string | null;
+  price: number; // Price per unit
+  subtotal: number;
 }
-
-const unitOptions = ['skids', 'boxes', 'kg', 'pcs', 'bunch', 'loaf', '1L', '750ml', '500g', 'cake'];
 
 const selectedCategoryId = ref<number | null>(null);
 const currentOrderItems = ref<OrderItem[]>([]);
-const store = useStore();
-const user = computed(() => store.getters['auth/user']);
 
 const handleCategorySelected = (categoryId: number) => {
   selectedCategoryId.value = categoryId;
 };
 
-const handleAddToOrder = (product: Product & { unit: string }) => {
-  // Check if the same product with the same unit exists
-  const existingItem = currentOrderItems.value.find(item => item.productId === product.id && item.unit === product.unit);
+const handleAddToOrder = (product: Product) => {
+  const existingItem = currentOrderItems.value.find(item => item.productId === product.id);
+
   if (existingItem) {
     existingItem.quantity++;
+    existingItem.subtotal = existingItem.quantity * existingItem.price;
   } else {
     currentOrderItems.value.push({
       productId: product.id,
       name: product.name,
       quantity: 1,
-      unit: product.unit
+      price: product.price,
+      subtotal: product.price, // Initially subtotal is just the price for quantity 1
     });
   }
 };
 
-const saveOrder = async () => {
+const calculateOrderTotal = computed(() => {
+  return currentOrderItems.value.reduce((total, item) => total + item.subtotal, 0);
+});
+
+const saveOrder = () => {
   if (currentOrderItems.value.length === 0) {
-    ElMessage.error('Cannot save an empty order.');
+    console.warn('Cannot save an empty order.');
+    // Optionally, provide user feedback (e.g., alert or notification)
     return;
   }
-  try {
-    // Prompt for recipient and date (for demo, use today and a prompt)
-    const recipient = prompt('Enter recipient name:');
-    if (!recipient || recipient.trim() === '') {
-      ElMessage.error('Recipient is required.');
-      return;
-    }
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    const formattedDate = `${year}-${month}-${day}`;
-    // Prepare order data for backend
-    const orderData = {
-      date: formattedDate,
-      recipient: recipient.trim(),
-      owner: user.value?.id,
-      items: currentOrderItems.value.map(item => ({
-        product_name: item.name,
-        quantity: item.quantity,
-        unit: item.unit || null
-      }))
-    };
-    await createOrder(orderData);
-    ElMessage.success('Order created successfully!');
-    // Optionally clear order after saving
-    currentOrderItems.value = [];
-    selectedCategoryId.value = null;
-  } catch (error) {
-    ElMessage.error('Failed to create order.');
-    console.error('Error creating order:', error);
-  }
+  console.log('Saving order:', JSON.parse(JSON.stringify(currentOrderItems.value))); // Deep copy for logging
+  // Here, you would typically send the order to a backend API
+  // For now, just logging. You might want to clear the order or give feedback.
+  alert('Order saved to console! (Mock implementation)');
+  // currentOrderItems.value = []; // Optionally clear order after saving
+  // selectedCategoryId.value = null; // Optionally reset category selection
 };
 </script>
 
@@ -208,10 +181,17 @@ const saveOrder = async () => {
   color: #555;
 }
 
-.item-unit {
+.item-price {
   flex-basis: 20%;
   text-align: right;
   color: #555;
+}
+
+.item-subtotal {
+  flex-basis: 25%;
+  text-align: right;
+  font-weight: bold;
+  color: #333;
 }
 
 .order-total {

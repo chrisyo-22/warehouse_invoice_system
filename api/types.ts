@@ -14,6 +14,7 @@ export interface Order {
   recipient: string;
   owner: string;
   invoice_number: string;
+  status: string;
   items: OrderItem[];
   original_message?: string;
   created_at: string;

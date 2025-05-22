@@ -464,8 +464,6 @@ const saveItems = async () => {
     
     // Prepare the data for the backend
     const orderData = {
-      date: props.order.date,
-      recipient: recipient.value,
       items: items.value.map(item => ({
         product_name: item.product_name,
         description: item.description || '',
